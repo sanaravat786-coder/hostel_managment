@@ -1,22 +1,92 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { DataTable } from "@/components/data-table";
-import { visitors } from "./data/data";
 import { columns } from "./components/columns";
 import { DataTableToolbar } from "./components/data-table-toolbar";
 import { Button } from "@/components/ui/button";
-import { PlusCircle } from "lucide-react";
+import { Loader2, PlusCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { LogVisitorForm } from "./components/log-visitor-form";
 import { Visitor } from "./data/schema";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
+
+interface SimpleStudent {
+  id: string;
+  name: string;
+}
 
 export default function VisitorsPage() {
+  const [visitors, setVisitors] = useState<Visitor[]>([]);
+  const [students, setStudents] = useState<SimpleStudent[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isLogVisitorOpen, setLogVisitorOpen] = useState(false);
 
-  const handleMarkExit = (visitor: Visitor) => {
-    // In a real app, you would call an API to update the visitor's out_time
-    toast.info(`Marking exit for ${visitor.name}.`);
+  async function fetchData() {
+    setLoading(true);
+    try {
+      const [visitorsRes, studentsRes] = await Promise.all([
+        supabase
+          .from('visitors')
+          .select(`*, student:student_id(profiles(full_name))`)
+          .order('in_time', { ascending: false }),
+        supabase
+          .from('students')
+          .select('id, profiles!inner(full_name)')
+      ]);
+
+      const { data: visitorsData, error: visitorsError } = visitorsRes;
+      if (visitorsError) throw visitorsError;
+
+      const { data: studentsData, error: studentsError } = studentsRes;
+      if (studentsError) throw studentsError;
+
+      const formattedVisitors: Visitor[] = visitorsData.map((v: any) => ({
+        id: v.id,
+        name: v.visitor_name,
+        contact: v.visitor_contact,
+        studentName: v.student?.profiles?.full_name || 'N/A',
+        purpose: v.purpose,
+        in_time: new Date(v.in_time),
+        out_time: v.out_time ? new Date(v.out_time) : null,
+        status: v.out_time ? 'Checked Out' : 'Inside',
+      }));
+      setVisitors(formattedVisitors);
+
+      const formattedStudents: SimpleStudent[] = studentsData.map((s: any) => ({
+        id: s.id,
+        name: s.profiles.full_name,
+      }));
+      setStudents(formattedStudents);
+
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleMarkExit = async (visitor: Visitor) => {
+    const { error } = await supabase
+      .from('visitors')
+      .update({ out_time: new Date().toISOString() })
+      .eq('id', visitor.id);
+    
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success(`Marked exit for ${visitor.name}.`);
+      fetchData();
+    }
+  };
+
+  const onVisitorLogged = () => {
+    fetchData();
+    setLogVisitorOpen(false);
   };
 
   const tableColumns = columns({ onMarkExit: handleMarkExit });
@@ -46,14 +116,20 @@ export default function VisitorsPage() {
                   Fill in the details below to log a new visitor entry.
                 </DialogDescription>
               </DialogHeader>
-              <LogVisitorForm onFinished={() => setLogVisitorOpen(false)} />
+              <LogVisitorForm onFinished={onVisitorLogged} students={students} />
             </DialogContent>
           </Dialog>
         </div>
         <div className="mt-8">
-          <DataTable data={visitors} columns={tableColumns}>
-              <DataTableToolbar />
-          </DataTable>
+          {loading ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : (
+            <DataTable data={visitors} columns={tableColumns}>
+                <DataTableToolbar />
+            </DataTable>
+          )}
         </div>
       </div>
     </>

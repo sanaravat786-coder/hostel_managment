@@ -13,28 +13,63 @@ import ComplaintsPage from './pages/complaints/ComplaintsPage';
 import NoticesPage from './pages/notices/NoticesPage';
 import ReportsPage from './pages/reports/ReportsPage';
 import ProfilePage from './pages/profile/ProfilePage';
+import { useAuth } from './contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
+
+function AppContent() {
+  const { user, loading, isAdmin } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  const defaultRedirect = isAdmin ? '/admin/dashboard' : '/notices';
+
+  return (
+    <Routes>
+      <Route path="/" element={!user ? <LandingPage /> : <Navigate to={defaultRedirect} replace />} />
+      <Route path="/login" element={!user ? <LoginPage /> : <Navigate to={defaultRedirect} replace />} />
+      <Route path="/signup" element={!user ? <SignUpPage /> : <Navigate to={defaultRedirect} replace />} />
+      
+      <Route element={<AppLayout />}>
+        {isAdmin ? (
+          <>
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/students" element={<StudentsPage />} />
+            <Route path="/rooms" element={<RoomsPage />} />
+            <Route path="/visitors" element={<VisitorsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+          </>
+        ) : (
+          /* Redirect non-admins away from admin pages */
+          <>
+            <Route path="/admin/dashboard" element={<Navigate to="/notices" replace />} />
+            <Route path="/students" element={<Navigate to="/notices" replace />} />
+            <Route path="/rooms" element={<Navigate to="/notices" replace />} />
+            <Route path="/visitors" element={<Navigate to="/notices" replace />} />
+            <Route path="/reports" element={<Navigate to="/notices" replace />} />
+          </>
+        )}
+        <Route path="/fees" element={<FeesPage />} />
+        <Route path="/complaints" element={<ComplaintsPage />} />
+        <Route path="/notices"element={<NoticesPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+      </Route>
+      
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
 
 function App() {
   return (
     <>
       <Router>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignUpPage />} />
-          <Route element={<AppLayout />}>
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            <Route path="/students" element={<StudentsPage />} />
-            <Route path="/rooms" element={<RoomsPage />} />
-            <Route path="/fees" element={<FeesPage />} />
-            <Route path="/visitors" element={<VisitorsPage />} />
-            <Route path="/complaints" element={<ComplaintsPage />} />
-            <Route path="/notices"element={<NoticesPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <AppContent />
       </Router>
       <Toaster />
     </>

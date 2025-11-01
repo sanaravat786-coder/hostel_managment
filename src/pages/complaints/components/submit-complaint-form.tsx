@@ -13,6 +13,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
+import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
+import { useState } from "react"
+import { Loader2 } from "lucide-react"
 
 const formSchema = z.object({
   title: z.string().min(5, { message: "Title must be at least 5 characters." }),
@@ -24,6 +28,9 @@ interface SubmitComplaintFormProps {
 }
 
 export function SubmitComplaintForm({ onFinished }: SubmitComplaintFormProps) {
+  const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -32,10 +39,29 @@ export function SubmitComplaintForm({ onFinished }: SubmitComplaintFormProps) {
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values)
-    toast.success("Complaint submitted successfully!")
-    onFinished();
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!user) {
+      toast.error("You must be logged in to submit a complaint.");
+      return;
+    }
+    setIsLoading(true);
+
+    const { error } = await supabase
+      .from('complaints')
+      .insert({
+        student_id: user.id,
+        title: values.title,
+        description: values.description,
+        status: 'Pending',
+      });
+
+    setIsLoading(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Complaint submitted successfully!");
+      onFinished();
+    }
   }
 
   return (
@@ -68,7 +94,10 @@ export function SubmitComplaintForm({ onFinished }: SubmitComplaintFormProps) {
           )}
         />
         <div className="flex justify-end">
-            <Button type="submit">Submit Complaint</Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Submit Complaint
+            </Button>
         </div>
       </form>
     </Form>

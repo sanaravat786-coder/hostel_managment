@@ -15,10 +15,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner"
 import { Fee } from "../data/schema"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon } from "lucide-react"
+import { CalendarIcon, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import { Calendar } from "@/components/ui/calendar"
+import { supabase } from "@/lib/supabase"
+import { useState } from "react"
 
 const formSchema = z.object({
   amount: z.coerce.number().positive({ message: "Amount must be positive." }),
@@ -28,21 +30,38 @@ const formSchema = z.object({
 
 interface AddPaymentFormProps {
     fee: Fee;
+    onFinished: () => void;
 }
 
-export function AddPaymentForm({ fee }: AddPaymentFormProps) {
+export function AddPaymentForm({ fee, onFinished }: AddPaymentFormProps) {
+  const [isLoading, setIsLoading] = useState(false);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
         paymentDate: new Date(),
+        amount: fee.balance,
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values)
-    toast.success(`Payment of ${values.amount} for ${fee.studentName} recorded successfully!`)
-    // Here you would typically call an API to save the data
-    // And then likely close the dialog and refresh the table
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsLoading(true);
+    const newPaidAmount = fee.paidAmount + values.amount;
+
+    const { error } = await supabase
+      .from('fees')
+      .update({ paid_amount: newPaidAmount })
+      .eq('id', fee.id);
+
+    // We can also log the transaction in a separate table if needed
+    // For now, just updating the fee record is enough.
+
+    setIsLoading(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success(`Payment of ${values.amount} for ${fee.studentName} recorded successfully!`);
+      onFinished();
+    }
   }
 
   return (
@@ -125,7 +144,10 @@ export function AddPaymentForm({ fee }: AddPaymentFormProps) {
           )}
         />
         <div className="flex justify-end col-span-4">
-            <Button type="submit">Save Payment</Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Payment
+            </Button>
         </div>
       </form>
     </Form>

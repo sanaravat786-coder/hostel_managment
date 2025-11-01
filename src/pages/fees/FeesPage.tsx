@@ -1,23 +1,76 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { DataTable } from "@/components/data-table";
-import { fees } from "./data/data";
 import { columns } from "./components/columns";
 import { DataTableToolbar } from "./components/data-table-toolbar";
 import { Fee } from "./data/schema";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AddPaymentForm } from "./components/add-payment-form";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function FeesPage() {
+  const [fees, setFees] = useState<Fee[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isPaymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedFee, setSelectedFee] = useState<Fee | null>(null);
+  const { user, isAdmin } = useAuth();
+
+  async function fetchFees() {
+    setLoading(true);
+
+    let query = supabase
+      .from('fees')
+      .select(`*, student:student_id(profiles(full_name))`)
+      .order('created_at', { ascending: false });
+
+    if (!isAdmin && user) {
+      query = query.eq('student_id', user.id);
+    }
+    
+    const { data, error } = await query;
+
+    if (error) {
+      toast.error(error.message);
+      setFees([]);
+    } else {
+      const formattedData: Fee[] = data.map((f: any) => ({
+        id: f.id,
+        studentId: f.student_id,
+        studentName: f.student.profiles.full_name,
+        totalAmount: f.total_amount,
+        paidAmount: f.paid_amount,
+        balance: f.total_amount - f.paid_amount,
+        status: f.paid_amount >= f.total_amount ? 'Paid' : f.paid_amount > 0 ? 'Partial' : 'Unpaid',
+      }));
+      setFees(formattedData);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    if (user) {
+      fetchFees();
+    }
+  }, [user, isAdmin]);
 
   const handleAddPayment = (fee: Fee) => {
+    if (!isAdmin) {
+      toast.error("Only admins can add payments.");
+      return;
+    }
     setSelectedFee(fee);
     setPaymentDialogOpen(true);
   };
 
-  const tableColumns = columns({ onAddPayment: handleAddPayment });
+  const onPaymentAdded = () => {
+    fetchFees();
+    setPaymentDialogOpen(false);
+  }
+
+  const tableColumns = columns({ onAddPayment: handleAddPayment, onDataChange: fetchFees, isAdmin });
 
   return (
     <>
@@ -30,9 +83,15 @@ export default function FeesPage() {
           ]}
         />
         <div className="mt-8">
-          <DataTable data={fees} columns={tableColumns}>
-              <DataTableToolbar />
-          </DataTable>
+          {loading ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : (
+            <DataTable data={fees} columns={tableColumns}>
+                <DataTableToolbar />
+            </DataTable>
+          )}
         </div>
       </div>
 
@@ -44,7 +103,7 @@ export default function FeesPage() {
               Record a new payment for {selectedFee?.studentName}.
             </DialogDescription>
           </DialogHeader>
-          {selectedFee && <AddPaymentForm fee={selectedFee} />}
+          {selectedFee && <AddPaymentForm fee={selectedFee} onFinished={onPaymentAdded} />}
         </DialogContent>
       </Dialog>
     </>

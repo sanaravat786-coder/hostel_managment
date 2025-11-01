@@ -10,7 +10,11 @@ import { DataTableColumnHeader } from "@/components/data-table-column-header"
 import { DataTableRowActions } from "./data-table-row-actions"
 import { format } from "date-fns"
 
-export const columns: ColumnDef<Complaint>[] = [
+interface ColumnsProps {
+  onDataChange: () => void;
+}
+
+export const columns = ({ onDataChange }: ColumnsProps): ColumnDef<Complaint>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -89,6 +93,6 @@ export const columns: ColumnDef<Complaint>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => <DataTableRowActions row={row} />,
+    cell: ({ row }) => <DataTableRowActions row={row} onDataChange={onDataChange} />,
   },
 ]

@@ -13,6 +13,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
+import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
+import { useState } from "react"
+import { Loader2 } from "lucide-react"
 
 const formSchema = z.object({
   title: z.string().min(5, { message: "Title must be at least 5 characters." }),
@@ -24,6 +28,9 @@ interface PostNoticeFormProps {
 }
 
 export function PostNoticeForm({ onFinished }: PostNoticeFormProps) {
+  const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -32,10 +39,28 @@ export function PostNoticeForm({ onFinished }: PostNoticeFormProps) {
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values)
-    toast.success("Notice posted successfully!")
-    onFinished();
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!user) {
+      toast.error("You must be logged in to post a notice.");
+      return;
+    }
+    setIsLoading(true);
+
+    const { error } = await supabase
+      .from('notices')
+      .insert({
+        posted_by: user.id,
+        title: values.title,
+        message: values.message,
+      });
+
+    setIsLoading(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Notice posted successfully!");
+      onFinished();
+    }
   }
 
   return (
@@ -68,7 +93,10 @@ export function PostNoticeForm({ onFinished }: PostNoticeFormProps) {
           )}
         />
         <div className="flex justify-end">
-            <Button type="submit">Post Notice</Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Post Notice
+            </Button>
         </div>
       </form>
     </Form>

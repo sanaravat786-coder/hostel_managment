@@ -16,14 +16,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarProps {
   isCollapsed: boolean;
 }
 
-const navItems = [
+const adminNavItems = [
   { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/students', icon: Users, label: 'Students' },
   { to: '/rooms', icon: BedDouble, label: 'Rooms' },
@@ -34,7 +34,17 @@ const navItems = [
   { to: '/reports', icon: FileText, label: 'Reports' },
 ];
 
+const studentNavItems = [
+    { to: '/notices', icon: Bell, label: 'Notices' },
+    { to: '/complaints', icon: MessageSquareWarning, label: 'My Complaints' },
+    { to: '/fees', icon: CreditCard, label: 'My Fees' },
+];
+
 export default function Sidebar({ isCollapsed }: SidebarProps) {
+  const { isAdmin } = useAuth();
+  const navItems = isAdmin ? adminNavItems : studentNavItems;
+  const defaultPath = isAdmin ? '/admin/dashboard' : '/notices';
+
   return (
     <div
       className={cn(
@@ -44,7 +54,7 @@ export default function Sidebar({ isCollapsed }: SidebarProps) {
     >
       <div className="flex h-full max-h-screen flex-col gap-2">
         <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-          <NavLink to="/" className="flex items-center gap-2 font-semibold">
+          <NavLink to={defaultPath} className="flex items-center gap-2 font-semibold">
             <Building2 className="h-6 w-6" />
             <span className={cn(isCollapsed && 'hidden')}>HMS</span>
           </NavLink>

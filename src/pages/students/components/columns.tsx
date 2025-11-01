@@ -9,7 +9,11 @@ import { Student } from "../data/schema"
 import { DataTableColumnHeader } from "@/components/data-table-column-header"
 import { DataTableRowActions } from "./data-table-row-actions"
 
-export const columns: ColumnDef<Student>[] = [
+interface ColumnsProps {
+  onDataChange: () => void;
+}
+
+export const columns = ({ onDataChange }: ColumnsProps): ColumnDef<Student>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -39,7 +43,7 @@ export const columns: ColumnDef<Student>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Student ID" />
     ),
-    cell: ({ row }) => <div className="w-[80px]">{row.getValue("id")}</div>,
+    cell: ({ row }) => <div className="w-[80px] truncate">{row.getValue("id")}</div>,
     enableSorting: false,
     enableHiding: false,
   },
@@ -120,6 +124,6 @@ export const columns: ColumnDef<Student>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => <DataTableRowActions row={row} />,
+    cell: ({ row }) => <DataTableRowActions row={row} onDataChange={onDataChange} />,
   },
 ]

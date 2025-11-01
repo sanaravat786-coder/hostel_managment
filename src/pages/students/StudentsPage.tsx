@@ -4,7 +4,7 @@ import { DataTable } from "@/components/data-table";
 import { columns } from "./components/columns";
 import { DataTableToolbar } from "./components/data-table-toolbar";
 import { Button } from "@/components/ui/button";
-import { PlusCircle } from "lucide-react";
+import { Loader2, PlusCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AddStudentForm } from "./components/add-student-form";
 import { supabase } from "@/lib/supabase";
@@ -13,9 +13,11 @@ import { Student } from "./data/schema";
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isDialogOpen, setDialogOpen] = useState(false);
 
   async function fetchStudents() {
+    setLoading(true);
     const { data, error } = await supabase
       .from('students')
       .select(`
@@ -35,6 +37,7 @@ export default function StudentsPage() {
 
     if (error) {
       toast.error(error.message);
+      setStudents([]);
     } else {
       const formattedStudents: Student[] = data.map((s: any) => ({
         id: s.id,
@@ -50,6 +53,7 @@ export default function StudentsPage() {
       }));
       setStudents(formattedStudents);
     }
+    setLoading(false);
   }
 
   useEffect(() => {
@@ -57,9 +61,11 @@ export default function StudentsPage() {
   }, []);
 
   const onStudentAdded = () => {
-    fetchStudents(); // Refetch students after a new one is added
-    setDialogOpen(false); // Close the dialog
+    fetchStudents();
+    setDialogOpen(false);
   }
+
+  const tableColumns = columns({ onDataChange: fetchStudents });
 
   return (
     <div>
@@ -90,9 +96,15 @@ export default function StudentsPage() {
         </Dialog>
       </div>
       <div className="mt-8">
-        <DataTable data={students} columns={columns}>
-            <DataTableToolbar />
-        </DataTable>
+        {loading ? (
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : (
+          <DataTable data={students} columns={tableColumns}>
+              <DataTableToolbar />
+          </DataTable>
+        )}
       </div>
     </div>
   );

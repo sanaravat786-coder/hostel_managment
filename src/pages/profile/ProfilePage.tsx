@@ -4,8 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -15,7 +20,6 @@ const profileFormSchema = z.object({
 });
 
 const passwordFormSchema = z.object({
-    currentPassword: z.string().min(1, "Current password is required."),
     newPassword: z.string().min(8, "New password must be at least 8 characters."),
     confirmPassword: z.string(),
 }).refine((data) => data.newPassword === data.confirmPassword, {
@@ -24,33 +28,75 @@ const passwordFormSchema = z.object({
 });
 
 export default function ProfilePage() {
+    const { user } = useAuth();
+    const navigate = useNavigate();
+    const [isLoading, setIsLoading] = useState({ profile: false, password: false });
 
     const profileForm = useForm<z.infer<typeof profileFormSchema>>({
         resolver: zodResolver(profileFormSchema),
         defaultValues: {
-            fullName: "Admin User",
-            email: "admin@example.com",
+            fullName: "",
+            email: "",
         },
     });
 
     const passwordForm = useForm<z.infer<typeof passwordFormSchema>>({
         resolver: zodResolver(passwordFormSchema),
         defaultValues: {
-            currentPassword: "",
             newPassword: "",
             confirmPassword: "",
         },
     });
 
-    function onProfileSubmit(values: z.infer<typeof profileFormSchema>) {
-        console.log(values);
-        toast.success("Profile updated successfully!");
+    useEffect(() => {
+        if (user) {
+            profileForm.reset({
+                fullName: user.user_metadata.full_name || "",
+                email: user.email || "",
+            });
+        }
+    }, [user, profileForm]);
+
+    async function onProfileSubmit(values: z.infer<typeof profileFormSchema>) {
+        if (!user) return;
+        setIsLoading(prev => ({ ...prev, profile: true }));
+
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .update({ full_name: values.fullName })
+            .eq('id', user.id);
+
+        if (profileError) {
+            toast.error(profileError.message);
+            setIsLoading(prev => ({ ...prev, profile: false }));
+            return;
+        }
+
+        const { error: authError } = await supabase.auth.updateUser({
+            data: { full_name: values.fullName }
+        });
+
+        setIsLoading(prev => ({ ...prev, profile: false }));
+        if (authError) {
+            toast.error(authError.message);
+        } else {
+            toast.success("Profile updated successfully!");
+        }
     }
 
-    function onPasswordSubmit(values: z.infer<typeof passwordFormSchema>) {
-        console.log(values);
-        toast.success("Password changed successfully!");
-        passwordForm.reset();
+    async function onPasswordSubmit(values: z.infer<typeof passwordFormSchema>) {
+        setIsLoading(prev => ({ ...prev, password: true }));
+        const { error } = await supabase.auth.updateUser({ password: values.newPassword });
+
+        setIsLoading(prev => ({ ...prev, password: false }));
+        if (error) {
+            toast.error(error.message);
+        } else {
+            toast.success("Password changed successfully! Please log in again.");
+            passwordForm.reset();
+            await supabase.auth.signOut();
+            navigate('/login');
+        }
     }
 
     return (
@@ -97,14 +143,17 @@ export default function ProfilePage() {
                                                 <FormItem>
                                                     <FormLabel>Email</FormLabel>
                                                     <FormControl>
-                                                        <Input type="email" {...field} readOnly />
+                                                        <Input type="email" {...field} readOnly disabled />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
                                             )}
                                         />
                                         <div className="flex justify-end">
-                                            <Button type="submit">Update Profile</Button>
+                                            <Button type="submit" disabled={isLoading.profile}>
+                                                {isLoading.profile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                Update Profile
+                                            </Button>
                                         </div>
                                     </form>
                                 </Form>
@@ -120,19 +169,6 @@ export default function ProfilePage() {
                             <CardContent>
                                 <Form {...passwordForm}>
                                     <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
-                                        <FormField
-                                            control={passwordForm.control}
-                                            name="currentPassword"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Current Password</FormLabel>
-                                                    <FormControl>
-                                                        <Input type="password" {...field} />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
                                         <FormField
                                             control={passwordForm.control}
                                             name="newPassword"
@@ -160,7 +196,10 @@ export default function ProfilePage() {
                                             )}
                                         />
                                         <div className="flex justify-end">
-                                            <Button type="submit">Change Password</Button>
+                                            <Button type="submit" disabled={isLoading.password}>
+                                                {isLoading.password && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                Change Password
+                                            </Button>
                                         </div>
                                     </form>
                                 </Form>

@@ -13,14 +13,22 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
+import { supabase } from "@/lib/supabase"
+import { useState } from "react"
+import { Loader2 } from "lucide-react"
 
 const formSchema = z.object({
-  room_no: z.string().min(2, { message: "Room number is required." }),
-  block: z.enum(["A", "B", "C", "D"]),
-  type: z.enum(["Single", "Double", "Triple"]),
+  room_no: z.string().min(1, { message: "Room number is required." }),
+  block: z.enum(["A", "B", "C", "D"], { required_error: "Block is required."}),
+  type: z.enum(["Single", "Double", "Triple"], { required_error: "Type is required."}),
 })
 
-export function AddRoomForm() {
+interface AddRoomFormProps {
+  onFinished: () => void;
+}
+
+export function AddRoomForm({ onFinished }: AddRoomFormProps) {
+  const [isLoading, setIsLoading] = useState(false);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -28,9 +36,29 @@ export function AddRoomForm() {
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values)
-    toast.success("Room added successfully!")
+  const capacityMap = {
+    "Single": 1,
+    "Double": 2,
+    "Triple": 3,
+  };
+
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsLoading(true);
+    const { error } = await supabase
+      .from('rooms')
+      .insert({
+        ...values,
+        capacity: capacityMap[values.type],
+        status: 'vacant',
+      });
+
+    setIsLoading(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Room added successfully!");
+      onFinished();
+    }
   }
 
   return (
@@ -95,7 +123,10 @@ export function AddRoomForm() {
           )}
         />
         <div className="flex justify-end col-span-4">
-            <Button type="submit">Save Room</Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Room
+            </Button>
         </div>
       </form>
     </Form>

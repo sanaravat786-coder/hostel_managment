@@ -8,9 +8,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Room } from "../data/schema"
 import { DataTableColumnHeader } from "@/components/data-table-column-header"
 import { DataTableRowActions } from "./data-table-row-actions"
-import { cn } from "@/lib/utils"
 
-export const columns: ColumnDef<Room>[] = [
+interface ColumnsProps {
+  onDataChange: () => void;
+}
+
+export const columns = ({ onDataChange }: ColumnsProps): ColumnDef<Room>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -108,6 +111,6 @@ export const columns: ColumnDef<Room>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => <DataTableRowActions row={row} />,
+    cell: ({ row }) => <DataTableRowActions row={row} onDataChange={onDataChange} />,
   },
 ]

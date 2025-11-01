@@ -16,9 +16,11 @@ const currencyFormatter = new Intl.NumberFormat('en-IN', {
 
 interface ColumnsProps {
     onAddPayment: (fee: Fee) => void;
+    onDataChange: () => void;
+    isAdmin: boolean;
 }
 
-export const columns = ({ onAddPayment }: ColumnsProps): ColumnDef<Fee>[] => [
+export const columns = ({ onAddPayment, onDataChange, isAdmin }: ColumnsProps): ColumnDef<Fee>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -108,6 +110,6 @@ export const columns = ({ onAddPayment }: ColumnsProps): ColumnDef<Fee>[] => [
   },
   {
     id: "actions",
-    cell: ({ row }) => <DataTableRowActions row={row} onAddPayment={onAddPayment} />,
+    cell: ({ row }) => <DataTableRowActions row={row} onAddPayment={onAddPayment} onDataChange={onDataChange} isAdmin={isAdmin} />,
   },
 ]

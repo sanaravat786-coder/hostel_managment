@@ -8,10 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
-import { CalendarIcon, Download } from "lucide-react";
+import { CalendarIcon, Download, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { supabase } from "@/lib/supabase";
+import Papa from "papaparse";
+import { useState } from "react";
 
 const formSchema = z.object({
     reportType: z.string({ required_error: "Please select a report type." }),
@@ -22,6 +25,7 @@ const formSchema = z.object({
 });
 
 export default function ReportsPage() {
+    const [isGenerating, setIsGenerating] = useState(false);
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -32,9 +36,115 @@ export default function ReportsPage() {
         },
     });
 
-    function onSubmit(values: z.infer<typeof formSchema>) {
-        console.log(values);
+    const downloadCSV = (data: any[], fileName: string) => {
+        const csv = Papa.unparse(data);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', fileName);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    async function onSubmit(values: z.infer<typeof formSchema>) {
+        setIsGenerating(true);
         toast.info(`Generating ${values.reportType} report...`);
+
+        try {
+            const { from, to } = values.dateRange;
+            const toDate = new Date(to);
+            toDate.setDate(toDate.getDate() + 1);
+
+            let data;
+            let fileName = `${values.reportType}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+
+            switch (values.reportType) {
+                case 'students': {
+                    const { data: students, error } = await supabase
+                        .from('students')
+                        .select('id, course, year, contact, profiles!inner(full_name, email, status), rooms(room_no)');
+                    if (error) throw error;
+                    data = students.map((s: any) => ({
+                        'ID': s.id,
+                        'Name': s.profiles.full_name,
+                        'Email': s.profiles.email,
+                        'Course': s.course,
+                        'Year': s.year,
+                        'Contact': s.contact,
+                        'Room No': s.rooms?.room_no || 'N/A',
+                        'Status': s.profiles.status,
+                    }));
+                    break;
+                }
+                case 'fees_summary': {
+                    const { data: fees, error } = await supabase
+                        .from('fees')
+                        .select('*, student:student_id(profiles(full_name))')
+                        .gte('created_at', from.toISOString())
+                        .lt('created_at', toDate.toISOString());
+                    if (error) throw error;
+                    data = fees.map((f: any) => ({
+                        'Student Name': f.student.profiles.full_name,
+                        'Total Amount': f.total_amount,
+                        'Paid Amount': f.paid_amount,
+                        'Balance': f.total_amount - f.paid_amount,
+                        'Status': f.paid_amount >= f.total_amount ? 'Paid' : f.paid_amount > 0 ? 'Partial' : 'Unpaid',
+                    }));
+                    break;
+                }
+                case 'visitor_log': {
+                    const { data: visitors, error } = await supabase
+                        .from('visitors')
+                        .select('*, student:student_id(profiles(full_name))')
+                        .gte('in_time', from.toISOString())
+                        .lt('in_time', toDate.toISOString());
+                    if (error) throw error;
+                    data = visitors.map((v: any) => ({
+                        'Visitor Name': v.visitor_name,
+                        'Visitor Contact': v.visitor_contact,
+                        'Student Visited': v.student.profiles.full_name,
+                        'Purpose': v.purpose,
+                        'In Time': format(new Date(v.in_time), 'PPpp'),
+                        'Out Time': v.out_time ? format(new Date(v.out_time), 'PPpp') : 'Inside',
+                    }));
+                    break;
+                }
+                case 'complaints': {
+                    const { data: complaints, error } = await supabase
+                        .from('complaints')
+                        .select('*, student:student_id(profiles(full_name))')
+                        .gte('created_at', from.toISOString())
+                        .lt('created_at', toDate.toISOString());
+                    if (error) throw error;
+                    data = complaints.map((c: any) => ({
+                        'Complaint ID': c.id,
+                        'Student Name': c.student.profiles.full_name,
+                        'Title': c.title,
+                        'Status': c.status,
+                        'Date': format(new Date(c.created_at), 'PP'),
+                    }));
+                    break;
+                }
+                default:
+                    throw new Error('Invalid report type');
+            }
+
+            if (data && data.length > 0) {
+                downloadCSV(data, fileName);
+                toast.success("Report generated and downloaded successfully!");
+            } else {
+                toast.info("No data found for the selected criteria.");
+            }
+
+        } catch (error: any) {
+            toast.error(`Failed to generate report: ${error.message}`);
+        } finally {
+            setIsGenerating(false);
+        }
     }
 
     return (
@@ -125,7 +235,8 @@ export default function ReportsPage() {
                                     )}
                                 />
                                 <div className="flex justify-end gap-2">
-                                    <Button type="submit">
+                                    <Button type="submit" disabled={isGenerating}>
+                                        {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         <Download className="mr-2 h-4 w-4" />
                                         Generate & Download
                                     </Button>
