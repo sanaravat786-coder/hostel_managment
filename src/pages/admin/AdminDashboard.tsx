@@ -37,12 +37,16 @@ export default function AdminDashboard() {
       try {
         setLoading(true);
 
+        const today = new Date();
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString();
+
         // Fetch main stats (parallel execution)
         const statsPromise = Promise.all([
           supabase.from('students').select('*', { count: 'exact', head: true }),
           supabase.from('rooms').select('*', { count: 'exact', head: true }),
           supabase.from('rooms').select('*', { count: 'exact', head: true }).eq('status', 'occupied'),
-          supabase.from('fees').select('paid_amount'),
+          supabase.from('transactions').select('paid_amount').gte('payment_date', startOfMonth).lte('payment_date', endOfMonth),
           supabase.from('complaints').select('*', { count: 'exact', head: true }).in('status', ['Pending', 'In Progress']),
         ]);
 
@@ -58,17 +62,17 @@ export default function AdminDashboard() {
           { count: totalStudents, error: studentsError },
           { count: totalRooms, error: roomsError },
           { count: occupiedRooms, error: occupiedRoomsError },
-          { data: feesData, error: feesError },
+          { data: transactionsData, error: transactionsError },
           { count: pendingComplaints, error: complaintsError },
         ] = statsResults;
 
         if (studentsError) throw studentsError;
         if (roomsError) throw roomsError;
         if (occupiedRoomsError) throw occupiedRoomsError;
-        if (feesError) throw feesError;
+        if (transactionsError) throw transactionsError;
         if (complaintsError) throw complaintsError;
 
-        const feesCollected = feesData?.reduce((acc, fee) => acc + fee.paid_amount, 0) || 0;
+        const feesCollected = transactionsData?.reduce((acc, t) => acc + t.paid_amount, 0) || 0;
         
         setStats({
           totalStudents: totalStudents || 0,
@@ -87,7 +91,7 @@ export default function AdminDashboard() {
         if (occupancySummaryError) throw occupancySummaryError;
 
         if (feeSummaryData) {
-          const formattedFeeData = feeSummaryData.map(item => ({
+          const formattedFeeData = feeSummaryData.map((item: any) => ({
             month: item.month,
             collected: item.collected,
             pending: item.total - item.collected,
@@ -96,7 +100,7 @@ export default function AdminDashboard() {
         }
 
         if (occupancySummaryData) {
-          const formattedOccupancyData = occupancySummaryData.map(item => ({
+          const formattedOccupancyData = occupancySummaryData.map((item: any) => ({
             name: `Block ${item.block}`,
             occupied: item.occupied,
             total: item.total,

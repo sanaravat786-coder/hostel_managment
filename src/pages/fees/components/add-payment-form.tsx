@@ -21,6 +21,7 @@ import { format } from "date-fns"
 import { Calendar } from "@/components/ui/calendar"
 import { supabase } from "@/lib/supabase"
 import { useState } from "react"
+import { useAuth } from "@/contexts/AuthContext"
 
 const formSchema = z.object({
   amount: z.coerce.number().positive({ message: "Amount must be positive." }),
@@ -35,6 +36,8 @@ interface AddPaymentFormProps {
 
 export function AddPaymentForm({ fee, onFinished }: AddPaymentFormProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -45,15 +48,16 @@ export function AddPaymentForm({ fee, onFinished }: AddPaymentFormProps) {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    const newPaidAmount = fee.paidAmount + values.amount;
 
     const { error } = await supabase
-      .from('fees')
-      .update({ paid_amount: newPaidAmount })
-      .eq('id', fee.id);
-
-    // We can also log the transaction in a separate table if needed
-    // For now, just updating the fee record is enough.
+      .from('transactions')
+      .insert({
+        fee_record_id: fee.id,
+        paid_amount: values.amount,
+        payment_date: values.paymentDate,
+        payment_mode: values.paymentMode,
+        recorded_by: user?.id,
+      });
 
     setIsLoading(false);
     if (error) {

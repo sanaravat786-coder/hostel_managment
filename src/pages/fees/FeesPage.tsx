@@ -22,8 +22,8 @@ export default function FeesPage() {
     setLoading(true);
 
     let query = supabase
-      .from('fees')
-      .select(`*, student:student_id(profiles(full_name))`)
+      .from('fee_details')
+      .select(`*`)
       .order('created_at', { ascending: false });
 
     if (!isAdmin && user) {
@@ -39,11 +39,11 @@ export default function FeesPage() {
       const formattedData: Fee[] = data.map((f: any) => ({
         id: f.id,
         studentId: f.student_id,
-        studentName: f.student.profiles.full_name,
+        studentName: f.student_name,
         totalAmount: f.total_amount,
         paidAmount: f.paid_amount,
-        balance: f.total_amount - f.paid_amount,
-        status: f.paid_amount >= f.total_amount ? 'Paid' : f.paid_amount > 0 ? 'Partial' : 'Unpaid',
+        balance: f.balance,
+        status: f.status,
       }));
       setFees(formattedData);
     }
@@ -100,7 +100,7 @@ export default function FeesPage() {
           <DialogHeader>
             <DialogTitle>Add Payment</DialogTitle>
             <DialogDescription>
-              Record a new payment for {selectedFee?.studentName}.
+              Record a new payment for {selectedFee?.studentName}. Current balance is {selectedFee?.balance}.
             </DialogDescription>
           </DialogHeader>
           {selectedFee && <AddPaymentForm fee={selectedFee} onFinished={onPaymentAdded} />}

@@ -46,7 +46,7 @@ export function DataTableRowActions<TData>({
 
   const handleDelete = async () => {
     setIsProcessing(true);
-    const { error } = await supabase.from('fees').delete().eq('id', fee.id);
+    const { error } = await supabase.from('fee_records').delete().eq('id', fee.id);
     setIsProcessing(false);
     setDeleteDialogOpen(false);
 
@@ -65,7 +65,7 @@ export function DataTableRowActions<TData>({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete this fee record.
+              This action cannot be undone. This will permanently delete this fee record and all associated transactions.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -89,12 +89,12 @@ export function DataTableRowActions<TData>({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[160px]">
-          {isAdmin && (
+          {isAdmin && fee.status !== 'Paid' && (
             <DropdownMenuItem onClick={() => onAddPayment(fee)}>
               Add Payment
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem>View Payments</DropdownMenuItem>
+          <DropdownMenuItem>View Transactions</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem>Generate Receipt</DropdownMenuItem>
           {isAdmin && (
