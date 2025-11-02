@@ -82,17 +82,17 @@ export default function ReportsPage() {
                 }
                 case 'fees_summary': {
                     const { data: fees, error } = await supabase
-                        .from('fees')
-                        .select('*, student:student_id(profiles(full_name))')
+                        .from('fee_details')
+                        .select('*')
                         .gte('created_at', from.toISOString())
                         .lt('created_at', toDate.toISOString());
                     if (error) throw error;
                     data = fees.map((f: any) => ({
-                        'Student Name': f.student.profiles.full_name,
+                        'Student Name': f.student_name,
                         'Total Amount': f.total_amount,
                         'Paid Amount': f.paid_amount,
-                        'Balance': f.total_amount - f.paid_amount,
-                        'Status': f.paid_amount >= f.total_amount ? 'Paid' : f.paid_amount > 0 ? 'Partial' : 'Unpaid',
+                        'Balance': f.balance,
+                        'Status': f.status,
                     }));
                     break;
                 }
